@@ -1,0 +1,297 @@
+using System;
+using System.Collections.Generic;
+
+namespace TextAnalyzerApp
+{
+    // Класс хранит всю статистику по 1 проанализированному тексту
+    // Каждый раз, когда пользователь вводит новый текст, создаётся новый
+    // Объект этого класса и добавляется в общий список истории
+    class TextStats
+    {
+        public string OriginalText;                 // сам исходный текст
+        public int WordCount;                       // количество слов
+        public string ShortestWord;                 // самое короткое слово
+        public string LongestWord;                  // самое длинное слово
+        public int SentenceCount;                   // количество предложений
+        public int VowelCount;                      // количество гласных букв
+        public int ConsonantCount;                  // количество согласных букв
+        public Dictionary<char, int> LetterFrequency; // частота встречаемости каждой буквы
+
+        public TextStats()
+        {
+            //Словарь сделать сразу
+            LetterFrequency = new Dictionary<char, int>();
+        }
+    }
+
+    class Program
+    {
+        // Набор гласных букв русского алфавита
+        // Используем строку как "множество" символов — Contains работает быстро для короткой строки.
+        const string Vowels = "аеёиоуыэюя";
+
+        // Набор согласных букв русского алфавита
+        const string Consonants = "бвгджзйклмнпрстфхцчшщ";
+
+        static void Main(string[] args)
+        {
+            // Список, в котором хранится статистика по введённым текстам
+            // за время работы программы (требование "сохранение всей статистики в список").
+            List<TextStats> history = new List<TextStats>();
+
+            bool running = true; // флаг, управляющий главным циклом программы
+
+            while (running)
+            {
+                //Меню на каждой итерации, чтобы пользователь видел доступные действия
+                Console.WriteLine();
+                Console.WriteLine("Меню");
+                Console.WriteLine("1 - Ввести новый текст для анализа");
+                Console.WriteLine("2 - Показать статистику по всем предыдущим текстам");
+                Console.WriteLine("3 - Выход");
+
+                string choice = Console.ReadLine(); //выбор пользователя
+
+                if (choice == "1")
+                {
+                    //ввод и анализ нового текста
+                    string text = ReadTextFromUser();      // получаем текст (гарантированно >= 100 символов)
+                    TextStats stats = AnalyzeText(text);    // считаем всю статистику
+                    history.Add(stats);                      // сохраняем результат в общую историю
+                    PrintStats(stats);                        // выводим результат на экран
+                }
+                else if (choice == "2")
+                {
+                    //вывод статистики по всем текстам, что вводились раньше
+                    ShowHistory(history);
+                }
+                else if (choice == "3")
+                {
+                    //завершение работы программы
+                    running = false;
+                    Console.WriteLine("Работа программы завершена.");
+                }
+                else
+                {
+                    // Обработка некорректного ввода
+                    Console.WriteLine("Неизвестная команда, попробуйте снова.");
+                }
+            }
+        }
+
+        // Метод запрашивает текст и не отпускает,
+        // пока введённая строка не будет содержать минимум 100 символов.
+        static string ReadTextFromUser()
+        {
+            string text;
+            while (true)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Введите текст (минимум 100 символов):");
+                text = Console.ReadLine();
+
+                // Если пользователь ничего не ввёл, Console.ReadLine() может вернуть null —
+                // подстраховываемся, заменяя null на пустую строку.
+                if (text == null)
+                    text = "";
+
+                if (text.Length >= 100)
+                {
+                    // Текст достаточно длинный, значит выход из цикла ввода
+                    break;
+                }
+
+                Console.WriteLine("Слишком короткий текст! Введено символов: " + text.Length + ". Нужно минимум 100.");
+            }
+            return text;
+        }
+
+        // Главный метод анализа: принимает текст и возвращает заполненный объект TextStats.
+        static TextStats AnalyzeText(string text)
+        {
+            TextStats stats = new TextStats();
+            stats.OriginalText = text;
+
+            // Разбивает текст на слова
+            string[] rawWords = SplitIntoWords(text);
+            stats.WordCount = rawWords.Length;
+
+            // Ищет самое короткое и самое длинное слово
+            string shortest = null;
+            string longest = null;
+
+            for (int i = 0; i < rawWords.Length; i++)
+            {
+                // Убирает знаки препинания по краям слова
+                string cleanWord = TrimPunctuation(rawWords[i]);
+
+                if (cleanWord.Length == 0)
+                    continue; // после очистки слово могло стать пустым, пропускаем
+
+                if (shortest == null || cleanWord.Length < shortest.Length)
+                    shortest = cleanWord;
+
+                if (longest == null || cleanWord.Length > longest.Length)
+                    longest = cleanWord;
+            }
+
+            stats.ShortestWord = shortest ?? ""; // если слов не было вовсе
+            stats.LongestWord = longest ?? "";
+
+            // Считает количество предложений
+            stats.SentenceCount = CountSentences(text);
+
+            // Считает гласные и согласные буквы, а заодно частоту каждой буквы 
+            int vowelCount = 0;
+            int consonantCount = 0;
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = char.ToLower(text[i]); // приводим к нижнему регистру, чтобы 'А' и 'а' считались одинаково
+
+                if (Vowels.IndexOf(c) >= 0)
+                {
+                    vowelCount++;
+                }
+                else if (Consonants.IndexOf(c) >= 0)
+                {
+                    consonantCount++;
+                }
+
+                // Частоту считает только для букв
+                if (char.IsLetter(c))
+                {
+                    if (stats.LetterFrequency.ContainsKey(c))
+                    {
+                        stats.LetterFrequency[c] = stats.LetterFrequency[c] + 1;
+                    }
+                    else
+                    {
+                        stats.LetterFrequency[c] = 1;
+                    }
+                }
+            }
+
+            stats.VowelCount = vowelCount;
+            stats.ConsonantCount = consonantCount;
+
+            return stats;
+        }
+
+        // Разбивает текст на слова по пробельным символам (пробел, таб, перенос строки)
+        static string[] SplitIntoWords(string text)
+        {
+            List<string> words = new List<string>();
+            string current = ""; // накопитель символов текущего слова
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+
+                if (char.IsWhiteSpace(c))
+                {
+                    // Дошел до пробела/таба/переноса строки, значит слово закончилось
+                    if (current.Length > 0)
+                    {
+                        words.Add(current);
+                        current = "";
+                    }
+                }
+                else
+                {
+                    // Обычный символ, добавляет его к текущему слову
+                    current += c;
+                }
+            }
+
+            // После цикла в "current" может остаться последнее слово
+            if (current.Length > 0)
+            {
+                words.Add(current);
+            }
+
+            return words.ToArray();
+        }
+
+        // Убирает знаки препинания с начала и с конца слова, оставляя только слово из букв/цифр.
+        static string TrimPunctuation(string word)
+        {
+            int start = 0;
+            int end = word.Length - 1;
+
+            // Двигает левую границу вправо, пока не встретит букву или цифру
+            while (start <= end && !char.IsLetterOrDigit(word[start]))
+                start++;
+
+            // Двигает правую границу влево, пока не встретит букву или цифру
+            while (end >= start && !char.IsLetterOrDigit(word[end]))
+                end--;
+
+            if (start > end)
+                return ""; // слово целиком состояло из знаков препинания
+
+            return word.Substring(start, end - start + 1);
+        }
+
+        // Считает количество предложений: ищет по '.', '!', '?',
+        // но идущие подряд знаки "?!", "..." считаем за предложение.
+        static int CountSentences(string text)
+        {
+            int count = 0;
+            bool previousWasTerminator = false;
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                bool isTerminator = (c == '.' || c == '!' || c == '?');
+
+                if (isTerminator && !previousWasTerminator)
+                {
+                    // Новая "серия" знаков окончания предложения считаем одним предложением
+                    count++;
+                }
+
+                previousWasTerminator = isTerminator;
+            }
+
+            return count;
+        }
+
+        // Выводит на экран статистику по одному тексту.
+        static void PrintStats(TextStats stats)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Результаты");
+            Console.WriteLine("Количество слов: " + stats.WordCount);
+            Console.WriteLine("Самое короткое: " + stats.ShortestWord);
+            Console.WriteLine("Самое длинное: " + stats.LongestWord);
+            Console.WriteLine("Количество предложений: " + stats.SentenceCount);
+            Console.WriteLine("Количество гласных: " + stats.VowelCount);
+            Console.WriteLine("Количество согласных: " + stats.ConsonantCount);
+            Console.WriteLine("Частота букв:");
+
+            // Проходим по словарю вручную (без LINQ) и выводим каждую пару буква-количество
+            foreach (KeyValuePair<char, int> pair in stats.LetterFrequency)
+            {
+                Console.WriteLine("  '" + pair.Key + "': " + pair.Value);
+            }
+        }
+
+        // Выводит статистику по всем текстам, введённым за время работы программы.
+        static void ShowHistory(List<TextStats> history)
+        {
+            if (history.Count == 0)
+            {
+                Console.WriteLine("История пуста — вы ещё не вводили ни одного текста.");
+                return;
+            }
+
+            for (int i = 0; i < history.Count; i++)
+            {
+                Console.WriteLine();
+                Console.WriteLine("=== Текст №" + (i + 1) + " ===");
+                PrintStats(history[i]);
+            }
+        }
+    }
+}
